@@ -9,6 +9,7 @@ import {
   LoginResponse,
   User,
 } from '../interfaces';
+import { RegisterResponse } from '../interfaces/register.interface';
 
 @Injectable({
   providedIn: 'root',
@@ -23,7 +24,9 @@ export class AuthService {
   public currentUser = computed(() => this._currentUser());
   public authStatus = computed(() => this._authStatus());
 
-  constructor() {}
+  constructor() {
+    this.checkAuthStatus().subscribe();
+  }
 
   private setAuthentication(user: User, token: string): boolean {
     this._currentUser.set(user);
@@ -42,11 +45,24 @@ export class AuthService {
     );
   }
 
+  signup(name: string, email: string, password: string): Observable<boolean> {
+    const url = `${this.baseUrl}/auth/register`;
+    const body = { name, email, password };
+
+    return this.http.post<RegisterResponse>(url, body).pipe(
+      map(({ user, token }) => this.setAuthentication(user, token)),
+      catchError((err) => throwError(() => err.error.message))
+    );
+  }
+
   checkAuthStatus(): Observable<boolean> {
     const url = `${this.baseUrl}/auth/check-token`;
     const token = localStorage.getItem('token');
 
-    if (!token) return of(false);
+    if (!token) {
+      this.logout();
+      return of(false);
+    }
 
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
 
@@ -57,5 +73,11 @@ export class AuthService {
         return of(false);
       })
     );
+  }
+
+  logout() {
+    localStorage.removeItem('token');
+    this._currentUser.set(null);
+    this._authStatus.set(AuthStatus.notAuthenticated);
   }
 }
